@@ -205,6 +205,7 @@ input.warn,select.warn{border-color:#d4840b!important;box-shadow:0 0 0 3px rgba(
           <option value="">&#8212; select &#8212;</option>
           <option value="Fixed Lease">Fixed</option>
           <option value="Month-to-Month">Month-to-Month</option>
+          <option value="Renewal">Renewal</option>
         </select></div>
       </div>
       <div class="field">
@@ -253,7 +254,7 @@ input.warn,select.warn{border-color:#d4840b!important;box-shadow:0 0 0 3px rgba(
       </div>
     </div>
     <div class="two">
-      <div class="field">
+      <div class="field" id="f-deposit">
         <label for="securityDeposit">Security Deposit</label>
         <div class="sw"><select id="securityDeposit">
           <option value="one (1) month's rent">One month's rent</option>
@@ -262,7 +263,7 @@ input.warn,select.warn{border-color:#d4840b!important;box-shadow:0 0 0 3px rgba(
         </select></div>
         <div class="field-err" id="depositErr"></div>
       </div>
-      <div class="field" id="f-customDep" style="display:none">
+      <div class="field" id="f-customDep" style="display:none" data-deposit-child="true">
         <label for="customDepAmt">Custom Amount</label>
         <input type="text" id="customDepAmt" placeholder="e.g. $750" inputmode="decimal"/>
       </div>
@@ -350,9 +351,13 @@ $("leaseType").addEventListener("change",function(){
 
 function termChange(){
   const val=v("leaseTerm");
-  $("f-endDate").classList.toggle("on",val==="Fixed Lease");
+  $("f-endDate").classList.toggle("on",val==="Fixed Lease"||val==="Renewal");
   $("f-notice").classList.toggle("on",val==="Month-to-Month");
   if(val==="Month-to-Month"&&!v("noticeDays")) $("noticeDays").value="30";
+  // Renewals don't require a new security deposit
+  const isRenewal = val==="Renewal";
+  $("f-deposit").style.display = isRenewal ? "none" : "block";
+  $("f-customDep").style.display = isRenewal ? "none" : $("f-customDep").style.display;
   check();
 }
 
@@ -378,13 +383,15 @@ function setFieldInvalid(fieldId, invalid){
 
 function required(){
   const isInlaw=["dc_inlaw","md_inlaw"].includes(v("leaseType"));
+  const isRenewal2 = v("leaseTerm")==="Renewal";
   const base=["leaseType","tenantName","landlordName","propertyAddress",
     "bathroomType","laundryAccess","parkingAccess","leaseTerm",
-    "creationDate","leaseStart","rentAmount","rentDueDay","securityDeposit","lateFee"];
+    "creationDate","leaseStart","rentAmount","rentDueDay","lateFee"];
+  if(!isRenewal2) base.push("securityDeposit");
   if(!isInlaw) base.push("backyardAccess");
-  if(v("leaseTerm")==="Fixed Lease") base.push("leaseEnd");
+  if(v("leaseTerm")==="Fixed Lease"||v("leaseTerm")==="Renewal") base.push("leaseEnd");
   if(v("leaseTerm")==="Month-to-Month") base.push("noticeDays");
-  if(v("securityDeposit")==="custom") base.push("customDepAmt");
+  if(!isRenewal2 && v("securityDeposit")==="custom") base.push("customDepAmt");
   return base;
 }
 
@@ -517,7 +524,7 @@ async function generate(){
     const key=v("leaseType"),tpl=T[key];
     const term=v("leaseTerm");
     const isInlaw=["dc_inlaw","md_inlaw"].includes(key);
-    const depVal=v("securityDeposit")==="custom"?v("customDepAmt"):v("securityDeposit");
+    const depVal=term==="Renewal" ? "N/A" : v("securityDeposit")==="custom" ? v("customDepAmt") : v("securityDeposit");
 
     const vals={
       "{{TenantName}}":            v("tenantName"),
@@ -527,26 +534,28 @@ async function generate(){
       "{{LaundryAccess}}":         v("laundryAccess"),
       "{{BackyardAccess}}":        isInlaw?"sole and exclusive use by the tenant":v("backyardAccess"),
       "{{ParkingAccess}}":         v("parkingAccess"),
-      "{{LeaseTerm}}":             term,
+      "{{LeaseTerm}}":             term==="Renewal" ? "Fixed Lease (Renewal)" : term,
       "{{CreationDate}}":          fmtDate(v("creationDate")),
       "{{LeaseStartDate}}":        fmtDate(v("leaseStart")),
       "{{LeaseEndDate}}":          term==="Fixed Lease"?fmtDate(v("leaseEnd")):"N/A",
       "{{NoticeDays}}":            term==="Month-to-Month"?v("noticeDays"):"30",
       "{{RentAmount}}":            "$"+v("rentAmount"),
       "{{RentDueDay}}":            v("rentDueDay"),
-      "{{SecurityDepositAmount}}": depVal,
+      "{{SecurityDepositAmount}}": term==="Renewal" ? "No new deposit required. The security deposit paid under the prior lease agreement is carried over and remains on file with the Landlord under the same terms and conditions." : depVal,
       "{{LateFeeAmount}}":         v("lateFee"),
-      "{{EarlyTerminationClause}}": term==="Fixed Lease"
+      "{{EarlyTerminationClause}}": (term==="Fixed Lease"||term==="Renewal")
         ? "If ending the lease early, tenant(s) must either: Find a qualified replacement tenant, or pay an early termination fee."
         : "Either party may end this agreement by providing the required notice period as defined in this Agreement. No early termination fee applies.",
-      "{{EarlyTerminationFee}}":   term==="Fixed Lease"
+      "{{EarlyTerminationFee}}":   (term==="Fixed Lease"||term==="Renewal")
         ? "Pay an early termination fee equal to two months\u2019 rent, which the Parties agree constitutes a reasonable estimate of damages (liquidated damages) and not a penalty."
         : "",
-      "{{TerminationNotice}}":    term==="Fixed Lease"
+      "{{TerminationNotice}}":    (term==="Fixed Lease"||term==="Renewal")
         ? "Tenant(s) must provide a 60-day written notice before moving out."
         : "Tenant(s) must provide " + (v("noticeDays")||"30") + " days\u2019 written notice before moving out, consistent with the notice period defined in this Agreement.",
       "{{ProbationaryClause}}":   term==="Fixed Lease"
         ? "A 60-day probationary period applies to all new tenants. During this time, either party may terminate the lease with 30 days\u2019 written notice for any reason."
+        : term==="Renewal"
+        ? "Not applicable. This is a lease renewal."
         : "Not applicable. This is a month-to-month agreement.",
     };
 

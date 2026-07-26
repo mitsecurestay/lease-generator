@@ -321,9 +321,9 @@ input.warn,select.warn{border-color:#d4840b!important;box-shadow:0 0 0 3px rgba(
 <!-- House rules quick link — shown after download, content varies by template -->
 <div class="house-rules-bar" id="houseRulesBar">
   <p id="houseRulesLabel">Next step &mdash; send the House Rules to your tenant:</p>
-  <!-- Room rental: Coliving Etiquette PDF -->
+  <!-- Room rental: Coliving Etiquette PDF (href set from BUSINESS_CONFIG.houseRulesUrl at load) -->
   <a class="house-rules-btn" id="linkRoom"
-     href="https://www.dropbox.com/scl/fi/sj8dla5qb10iig75jfg1g/MIT-Secure-Stay-Coliving-Etiquette.pdf?rlkey=89uqbktwd8vzqdshhrtdsqmzz&st=t67hbkwm&dl=0"
+     href="#"
      target="_blank" rel="noopener" style="display:none">
     &#128196; Open Coliving Etiquette Rules &rarr;
   </a>
@@ -447,6 +447,18 @@ function buildLiablePartyClause(parties, term){
     "obligations arising under this Agreement, including any damages, until the Agreement terminates.";
 }
 
+// ── Business configuration ───────────────────────────────────────────────
+// The handful of business-identity values that actually appear in generated
+// communications and links today. Centralized here so changing them (e.g.
+// a new signer, or the House Rules doc moving) means editing one object,
+// not searching the file. Deliberately narrow: only values already in use
+// below — no placeholder fields (phone/email/etc.) added ahead of need.
+const BUSINESS_CONFIG = {
+  businessName: "MIT Secure Stay",
+  signature: "Greg",
+  houseRulesUrl: "https://www.dropbox.com/scl/fi/sj8dla5qb10iig75jfg1g/MIT-Secure-Stay-Coliving-Etiquette.pdf?rlkey=89uqbktwd8vzqdshhrtdsqmzz&st=t67hbkwm&dl=0"
+};
+
 // ── Tenant notification templates ────────────────────────────────────────
 // Draft-only — the human copies and sends; nothing here transmits anything.
 //
@@ -466,7 +478,7 @@ const NOTIFY_TEMPLATES = {
   renewalSentText:
     "Hi {{tenantName}}, I just sent your renewed lease for {{propertyAddress}} to your email via RentRedi \u2014 please review and sign within 7\u201310 business days to keep everything current. Let me know if you have any questions!",
   leaseSentEmailSubject:
-    "Your Lease Agreement for {{propertyAddress}} \u2014 MIT Secure Stay",
+    "Your Lease Agreement for {{propertyAddress}} \u2014 {{businessName}}",
   leaseSentEmailBody:
     "Hi {{tenantName}},\n\n"+
     "We're delighted to let you know that we've just sent the lease agreement for {{propertyAddress}} to your email. This document outlines all the essential details of your tenancy and the commitments involved.\n\n"+
@@ -474,21 +486,22 @@ const NOTIFY_TEMPLATES = {
     "{{costItems}}\n\n"+
     "Please review the lease thoroughly to ensure you understand all the terms and conditions. If you have any questions or need clarifications, don't hesitate to reach out. We're here to make sure everything is crystal clear! \ud83e\udd13\n\n"+
     "Once you're comfortable, you can sign the lease digitally using the instructions provided in the email. Remember, the deposit will need to be completed at the time of signing to finalize the lease agreement.\n\n"+
-    "We're excited to get everything finalized and welcome you to your new home! Thank you for choosing MIT SecureStay. We look forward to having you as our tenant!\n\n"+
-    "Warm regards,\nGreg",
+    "We're excited to get everything finalized and welcome you to your new home! Thank you for choosing {{businessName}}. We look forward to having you as our tenant!\n\n"+
+    "Warm regards,\n{{signature}}",
   renewalEmailSubject:
-    "Your Renewed Lease for {{propertyAddress}} \u2014 MIT Secure Stay",
+    "Your Renewed Lease for {{propertyAddress}} \u2014 {{businessName}}",
   renewalEmailBody:
     "Hi {{tenantName}},\n\n"+
     "Your renewed lease is now ready for review in RentRedi. [If terms have changed: This renewal reflects an updated rent of ${{rentAmount}}/mo, effective {{leaseStartFormatted}} \u2014 otherwise remove this line for a flat renewal.]\n\n"+
     "Please review it carefully and sign within 7\u201310 business days to keep everything current.\n\n"+
     "If you have any questions or notice anything that needs clarification, don't hesitate to reach out directly.\n\n"+
     "Thanks for taking care of this promptly!\n\n"+
-    "Best,\nGreg"
+    "Best,\n{{signature}}"
 };
 
 function renderTemplate(tpl, data){
-  return tpl.replace(/\{\{(\w+)\}\}/g, (m,key)=> (key in data) ? data[key] : m);
+  const merged = Object.assign({}, BUSINESS_CONFIG, data);
+  return tpl.replace(/\{\{(\w+)\}\}/g, (m,key)=> (key in merged) ? merged[key] : m);
 }
 
 function buildLeaseSentText(){
@@ -806,6 +819,7 @@ async function generate(){
   }
 }
 
+$("linkRoom").href = BUSINESS_CONFIG.houseRulesUrl;
 $("creationDate").value=new Date().toISOString().split("T")[0];
 check();
 </script>

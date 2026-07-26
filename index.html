@@ -64,6 +64,21 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .house-rules-bar p{font-size:12px;color:var(--muted);margin-bottom:8px}
 .house-rules-btn{display:inline-flex;align-items:center;gap:6px;background:var(--cream);border:1px solid var(--gold-lt);border-radius:4px;padding:9px 16px;font-family:"DM Serif Display",serif;font-size:.9rem;color:var(--ink);text-decoration:none;transition:background .2s}
 .house-rules-btn:hover{background:var(--gold-lt)}
+.notify-bar{display:none;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin-bottom:12px;box-shadow:0 2px 16px var(--shadow)}
+.notify-bar.on{display:block}
+.notify-bar h4{font-size:12px;color:var(--muted);margin-bottom:10px;text-align:center;text-transform:uppercase;letter-spacing:.04em}
+.notify-block{margin-bottom:14px}
+.notify-block:last-child{margin-bottom:0}
+.notify-block-label{font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.notify-subject{font-size:12px;color:var(--ink);margin-bottom:6px;font-style:italic}
+.notify-textarea{width:100%;box-sizing:border-box;font-family:"DM Sans",sans-serif;font-size:13px;line-height:1.5;color:var(--ink);background:var(--cream);border:1px solid var(--line);border-radius:4px;padding:10px 12px;resize:vertical;min-height:70px}
+.notify-copy-btn{display:inline-flex;align-items:center;gap:6px;background:var(--cream);border:1px solid var(--gold-lt);border-radius:4px;padding:7px 14px;font-family:"DM Sans",sans-serif;font-size:.8rem;font-weight:600;color:var(--ink);cursor:pointer;margin-top:6px;transition:background .2s}
+.notify-copy-btn:hover{background:var(--gold-lt)}
+.action-row{display:flex;gap:12px;align-items:flex-start;margin-bottom:16px}
+.action-row:last-child{margin-bottom:0}
+.action-check{flex:0 0 auto;font-size:16px;line-height:1.4;color:var(--muted);width:20px;text-align:center;transition:color .2s}
+.action-check.done{color:#2e7d4f}
+.action-body{flex:1 1 auto;min-width:0}
 .field-err{font-size:11px;color:var(--rust);margin-top:4px;display:none}
 .field-err.on{display:block}
 .field-warn{font-size:11px;color:#b86b0b;margin-top:4px;display:none}
@@ -316,6 +331,31 @@ input.warn,select.warn{border-color:#d4840b!important;box-shadow:0 0 0 3px rgba(
   <span id="linkInlaw" style="display:none"></span>
 </div>
 
+<!-- Post-download checklist — draft/copy only, human reviews and sends manually.
+     Structured to add more actions later (e.g. move-in packet) without a redesign;
+     checkmarks are in-session UI feedback only, not persisted/tracked anywhere. -->
+<div class="notify-bar" id="notifyBar">
+  <h4>Post-Generation Actions</h4>
+  <div class="action-row">
+    <span class="action-check" id="checkCopyText">&#9744;</span>
+    <div class="action-body">
+      <div class="notify-block-label">Copy Text</div>
+      <textarea class="notify-textarea" id="notifyTextBody" readonly rows="3"></textarea>
+      <button class="notify-copy-btn" type="button" onclick="copyNotify('notifyTextBody', 'checkCopyText')">&#128203; Copy Text</button>
+    </div>
+  </div>
+  <div class="action-row">
+    <span class="action-check" id="checkCopyEmail">&#9744;</span>
+    <div class="action-body">
+      <div class="notify-block-label">Copy Email</div>
+      <div class="notify-subject" id="notifyEmailSubject"></div>
+      <textarea class="notify-textarea" id="notifyEmailBody" readonly rows="8"></textarea>
+      <button class="notify-copy-btn" type="button" onclick="copyNotify('notifyEmailBody', 'checkCopyEmail')">&#128203; Copy Email Body</button>
+      <button class="notify-copy-btn" type="button" onclick="copyNotifySubject(this)">&#128203; Copy Subject</button>
+    </div>
+  </div>
+</div>
+
 <div class="bar">
   <div class="err" id="err"></div>
   <button id="btn" disabled onclick="generate()">
@@ -362,6 +402,26 @@ function toast(msg){
   const t=$("toast");t.textContent=msg;t.classList.add("on");
   setTimeout(()=>t.classList.remove("on"),3500);
 }
+async function copyNotify(id, checkId){
+  try{
+    await navigator.clipboard.writeText($(id).value);
+    toast("\u2713 Copied");
+  }catch(e){
+    $(id).select();
+    document.execCommand("copy");
+    toast("\u2713 Copied");
+  }
+  if(checkId){ const c=$(checkId); c.textContent="\u2713"; c.classList.add("done"); }
+}
+async function copyNotifySubject(btnEl){
+  const subj=$("notifyEmailSubject").textContent;
+  try{
+    await navigator.clipboard.writeText(subj);
+    toast("\u2713 Copied subject");
+  }catch(e){
+    toast("Copy failed \u2014 select manually");
+  }
+}
 function tog(id){ $(id).classList.toggle("collapsed"); }
 
 // Data model reads as an array even though the UI exposes only one entry today —
@@ -385,6 +445,89 @@ function buildLiablePartyClause(parties, term){
   return lead+" "+verbBe+" "+article+termWord+" to this Agreement and "+verbAgree+
     " to be jointly and severally liable with the Tenant(s) for all rent, fees, and other "+
     "obligations arising under this Agreement, including any damages, until the Agreement terminates.";
+}
+
+// ── Tenant notification templates ────────────────────────────────────────
+// Draft-only — the human copies and sends; nothing here transmits anything.
+//
+// SOURCE OF TRUTH: MESSAGE_SEQUENCES.md ("Lease sent" / "Lease renewal"
+// scripts), canonical in the Leasing Copilot Claude Project.
+// This is a MANUALLY-SYNCED COPY, not a live pull. There is no shared
+// runtime between this static HTML tool and that Claude Project, so if you
+// change the wording in MESSAGE_SEQUENCES.md, mirror it here by hand — the
+// two will not drift-detect each other automatically.
+// Duplication is intentional for now: a shared Message Library only earns
+// its cost once a second real product needs these same templates. Revisit
+// then, not before. (leaseSentText/renewalSentText below are NEW content —
+// no canonical text-message script exists yet in MESSAGE_SEQUENCES.md.)
+const NOTIFY_TEMPLATES = {
+  leaseSentText:
+    "Hi {{tenantName}}, I just sent your lease agreement for {{propertyAddress}} to your email via RentRedi \u2014 please review it, sign digitally, and let me know if you have any questions. Thanks!",
+  renewalSentText:
+    "Hi {{tenantName}}, I just sent your renewed lease for {{propertyAddress}} to your email via RentRedi \u2014 please review and sign within 7\u201310 business days to keep everything current. Let me know if you have any questions!",
+  leaseSentEmailSubject:
+    "Your Lease Agreement for {{propertyAddress}} \u2014 MIT Secure Stay",
+  leaseSentEmailBody:
+    "Hi {{tenantName}},\n\n"+
+    "We're delighted to let you know that we've just sent the lease agreement for {{propertyAddress}} to your email. This document outlines all the essential details of your tenancy and the commitments involved.\n\n"+
+    "Here's what you need to know about the upcoming costs and requirements:\n\n"+
+    "{{costItems}}\n\n"+
+    "Please review the lease thoroughly to ensure you understand all the terms and conditions. If you have any questions or need clarifications, don't hesitate to reach out. We're here to make sure everything is crystal clear! \ud83e\udd13\n\n"+
+    "Once you're comfortable, you can sign the lease digitally using the instructions provided in the email. Remember, the deposit will need to be completed at the time of signing to finalize the lease agreement.\n\n"+
+    "We're excited to get everything finalized and welcome you to your new home! Thank you for choosing MIT SecureStay. We look forward to having you as our tenant!\n\n"+
+    "Warm regards,\nGreg",
+  renewalEmailSubject:
+    "Your Renewed Lease for {{propertyAddress}} \u2014 MIT Secure Stay",
+  renewalEmailBody:
+    "Hi {{tenantName}},\n\n"+
+    "Your renewed lease is now ready for review in RentRedi. [If terms have changed: This renewal reflects an updated rent of ${{rentAmount}}/mo, effective {{leaseStartFormatted}} \u2014 otherwise remove this line for a flat renewal.]\n\n"+
+    "Please review it carefully and sign within 7\u201310 business days to keep everything current.\n\n"+
+    "If you have any questions or notice anything that needs clarification, don't hesitate to reach out directly.\n\n"+
+    "Thanks for taking care of this promptly!\n\n"+
+    "Best,\nGreg"
+};
+
+function renderTemplate(tpl, data){
+  return tpl.replace(/\{\{(\w+)\}\}/g, (m,key)=> (key in data) ? data[key] : m);
+}
+
+function buildLeaseSentText(){
+  const isRenewal = v("leaseTerm")==="Renewal";
+  const data = { tenantName: v("tenantName")||"[Name]", propertyAddress: v("propertyAddress")||"[Property Address]" };
+  return renderTemplate(isRenewal ? NOTIFY_TEMPLATES.renewalSentText : NOTIFY_TEMPLATES.leaseSentText, data);
+}
+
+function buildLeaseSentEmail(){
+  const isRenewal = v("leaseTerm")==="Renewal";
+  const isRoomRental = v("leaseType")==="dc_room"||v("leaseType")==="md_room";
+  const data = { tenantName: v("tenantName")||"[Name]", propertyAddress: v("propertyAddress")||"[Property Address]" };
+
+  if(isRenewal){
+    data.rentAmount = v("rentAmount")||"[amount]";
+    data.leaseStartFormatted = fmtDate(v("leaseStart"))||"[date]";
+    return {
+      subject: renderTemplate(NOTIFY_TEMPLATES.renewalEmailSubject, data),
+      body: renderTemplate(NOTIFY_TEMPLATES.renewalEmailBody, data)
+    };
+  }
+
+  let depositLine = v("securityDeposit");
+  if(depositLine==="custom") depositLine = v("customDepAmt")||"the amount specified in your lease";
+  if(!depositLine) depositLine = "one month's rent";
+
+  const items = [
+    "1. Deposit: The security deposit, equivalent to "+depositLine+", is due at the time of lease signing. This deposit secures your tenancy and is held in accordance with local rental regulations.",
+    "2. First Month's Rent or Prorated Amount: This will be due before you move in. Depending on your official move-in date, it may be the full month's rent or a prorated amount. We will confirm the exact figure with you shortly."
+  ];
+  if(isRoomRental){
+    items.push("3. House Rules: Along with the lease, you'll receive a set of house rules that need to be signed. These rules are designed to ensure a comfortable and respectful environment for all residents.");
+  }
+  data.costItems = items.join("\n\n");
+
+  return {
+    subject: renderTemplate(NOTIFY_TEMPLATES.leaseSentEmailSubject, data),
+    body: renderTemplate(NOTIFY_TEMPLATES.leaseSentEmailBody, data)
+  };
 }
 
 $("leaseType").addEventListener("change",function(){
@@ -647,6 +790,14 @@ async function generate(){
     } else {
       $("houseRulesBar").classList.remove("on");
     }
+
+    $("notifyTextBody").value = buildLeaseSentText();
+    const emailMsg = buildLeaseSentEmail();
+    $("notifyEmailSubject").textContent = "Subject: " + emailMsg.subject;
+    $("notifyEmailBody").value = emailMsg.body;
+    $("checkCopyText").textContent="\u2610"; $("checkCopyText").classList.remove("done");
+    $("checkCopyEmail").textContent="\u2610"; $("checkCopyEmail").classList.remove("done");
+    $("notifyBar").classList.add("on");
   }catch(e){
     const el=$("err");el.textContent="Error: "+e.message;el.style.display="block";
   }finally{

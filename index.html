@@ -354,6 +354,13 @@ input.warn,select.warn{border-color:#d4840b!important;box-shadow:0 0 0 3px rgba(
       <button class="notify-copy-btn" type="button" onclick="copyNotifySubject(this)">&#128203; Copy Subject</button>
     </div>
   </div>
+  <div class="action-row">
+    <span class="action-check">&#8635;</span>
+    <div class="action-body">
+      <div class="notify-block-label">Start New Lease</div>
+      <button class="notify-copy-btn" type="button" onclick="resetForm()">Clear form &amp; start over</button>
+    </div>
+  </div>
 </div>
 
 <div class="bar">
@@ -571,6 +578,57 @@ function termChange(){
   $("f-deposit").style.display = isRenewal ? "none" : "block";
   $("f-customDep").style.display = isRenewal ? "none" : $("f-customDep").style.display;
   check();
+}
+
+// Reset the form for the next lease without a page refresh. Only reachable
+// from the Post-Generation Actions panel (i.e. after a successful download),
+// so a stray click can't wipe in-progress data — still confirms to be safe.
+function resetForm(){
+  if(!confirm("Start a new lease? This clears everything currently on the form.")) return;
+
+  ["leaseType","tenantName","landlordName","propertyAddress","bathroomType",
+   "laundryAccess","backyardAccess","parkingAccess","leaseTerm","leaseStart",
+   "leaseEnd","noticeDays","rentAmount","customDepAmt","lateFee",
+   "liablePartyName","liablePartyAddress"].forEach(id=>{ $(id).value=""; });
+
+  $("rentDueDay").value="1st";
+  $("securityDeposit").value="one (1) month's rent";
+  $("addLiableParty").value="no";
+  $("creationDate").value=new Date().toISOString().split("T")[0];
+
+  // Re-run the same listeners that drive conditional display, so state
+  // matches what a fresh page load would produce.
+  $("badge").style.display="none";
+  $("f-backyard").style.display="block";
+  $("mdNotice").classList.remove("on");
+  $("liablePartyCardTitle").textContent="6 — Guarantor";
+  $("addLiablePartyLabel").firstChild.textContent="Add a Guarantor to this lease? ";
+  $("liablePartyNameLabel").textContent="Guarantor Full Name";
+  $("liablePartyAddressLabel").textContent="Guarantor Address";
+  $("f-liablePartyName").classList.remove("on");
+  $("f-liablePartyAddress").classList.remove("on");
+  $("f-customDep").style.display="none";
+  termChange();
+
+  // Clear validation state
+  ["agreementErr","startErr","endErr","noticeErr","rentErr","depositErr","lateFeeErr"].forEach(id=>{
+    $(id).classList.remove("on"); $(id).textContent="";
+  });
+  $("err").style.display="none"; $("err").textContent="";
+
+  // Collapse back to the same cards that are open on first load
+  ["c1","c2","c3","c4","c5"].forEach(id=>$(id).classList.add("collapsed"));
+  $("c0").classList.remove("collapsed");
+
+  // Hide post-generation panels and reset their checkmarks
+  $("houseRulesBar").classList.remove("on");
+  $("notifyBar").classList.remove("on");
+  $("checkCopyText").textContent="\u2610"; $("checkCopyText").classList.remove("done");
+  $("checkCopyEmail").textContent="\u2610"; $("checkCopyEmail").classList.remove("done");
+
+  check();
+  window.scrollTo({top:0, behavior:"smooth"});
+  toast("Form cleared — ready for the next lease");
 }
 
 $("securityDeposit").addEventListener("change",function(){
